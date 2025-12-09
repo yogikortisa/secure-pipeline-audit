@@ -1,12 +1,20 @@
-# INSECURE: Unpinned dependencies - Supply chain risk!
-# Without version pinning, any future (potentially malicious) version could be installed
-# This is how supply chain attacks like event-stream (npm) happened
+# SECURE: Dependencies with pinned versions
+# This prevents supply chain attacks where a malicious version is published
+#
+# Best practice: Also include hashes for additional verification
+# Generate hashes with: pip-compile --generate-hashes requirements.in
 
-requests
-flask
-pyyaml
-cryptography
-urllib3
-pillow
-numpy
+# Core dependencies - pinned to specific versions
+requests==2.31.0
+flask==3.0.0
+pyyaml==6.0.1
+cryptography==41.0.7
+urllib3==2.1.0
+pillow==10.1.0
+numpy==1.26.2
+
+# Note: In production, consider using pip-compile with hash verification:
+# requests==2.31.0 \
+#     --hash=sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f \
+#     --hash=sha256:942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1
 

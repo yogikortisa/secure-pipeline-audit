@@ -1,245 +1,204 @@
-# Audit Checklist - CI/CD Pipeline Security
+# Security Controls Verification Checklist
 
-## Panduan Audit untuk Branch `insecure`
+## Branch: `secure`
 
-Gunakan checklist ini untuk melakukan audit keamanan pada pipeline CI/CD. Centang setiap kerentanan yang Anda temukan.
-
----
-
-## Bagian A: Audit Workflow (.github/workflows/pipeline.yml)
-
-### A1. Supply Chain - GitHub Actions
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah actions menggunakan version pinning dengan SHA? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada actions dari third-party yang tidak terverifikasi? | [ ] Ya / [ ] Tidak | |
-| 3 | Versi apa yang digunakan untuk `actions/checkout`? | __________ | |
-
-**Kerentanan yang dicari:**
-```yaml
-# INSECURE - hanya menggunakan tag
-uses: actions/checkout@v2
-
-# SECURE - menggunakan full SHA
-uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
-```
+Gunakan checklist ini untuk memverifikasi bahwa semua kontrol keamanan telah diimplementasikan dengan benar.
 
 ---
 
-### A2. Supply Chain - External Scripts
+## Bagian A: Workflow Security Controls
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada command `curl | bash` atau sejenisnya? | [ ] Ya / [ ] Tidak | |
-| 2 | Dari URL mana script didownload? | __________ | |
-| 3 | Apakah ada verifikasi checksum sebelum eksekusi? | [ ] Ya / [ ] Tidak | |
+### A1. Supply Chain - Action Pinning
 
-**Pattern berbahaya:**
-```bash
-# INSECURE - langsung execute tanpa verifikasi
-curl -sSL https://example.com/script.sh | bash
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | actions/checkout menggunakan SHA | [x] | `@8ade135a41bc03ea155e62e844d188df1ea18608` |
+| 2 | actions/setup-python menggunakan SHA | [x] | `@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236` |
+| 3 | Tidak ada action menggunakan tag saja | [x] | Verified |
 
-# SECURE - download, verify, then execute
-curl -sSL -o script.sh https://example.com/script.sh
-echo "expected_sha256_hash  script.sh" | sha256sum -c -
-bash script.sh
-```
+---
+
+### A2. Supply Chain - No Remote Execution
+
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Tidak ada `curl \| bash` | [x] | No remote script execution |
+| 2 | Tidak ada download dari URL eksternal | [x] | Verified |
+| 3 | Tidak ada `wget` tanpa verification | [x] | Verified |
 
 ---
 
 ### A3. Dependency Management
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah requirements.txt menggunakan version pinning? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada dependency scanning (pip-audit, safety)? | [ ] Ya / [ ] Tidak | |
-| 3 | List dependencies tanpa version: | __________ | |
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Semua dependencies di-pin dengan version | [x] | See requirements.txt |
+| 2 | pip-audit digunakan untuk scanning | [x] | Line 54-56 in workflow |
+| 3 | Safety check dijalankan | [x] | Line 58-59 in workflow |
 
 ---
 
-### A4. Secrets Management
+### A4. Integrity Verification
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada hardcoded secrets di workflow file? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah secrets di-print ke log? | [ ] Ya / [ ] Tidak | |
-| 3 | Apakah menggunakan GitHub Secrets dengan benar? | [ ] Ya / [ ] Tidak | |
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | SHA256 hash verification step exists | [x] | `integrity-check` job |
+| 2 | Expected hash didefinisikan | [x] | `EXPECTED_APP_HASH` env var |
+| 3 | File checksums di-generate untuk audit | [x] | `Generate file checksums` step |
 
 ---
 
 ### A5. Permissions
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah permissions didefinisikan secara eksplisit? | [ ] Ya / [ ] Tidak | |
-| 2 | Apa permission level yang digunakan? | __________ | |
-| 3 | Apakah mengikuti principle of least privilege? | [ ] Ya / [ ] Tidak | |
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Permissions block didefinisikan | [x] | Lines 23-25 |
+| 2 | contents: read (bukan write) | [x] | Verified |
+| 3 | Mengikuti least privilege | [x] | Only read permissions |
 
 ---
 
-### A6. Integrity Verification
+### A6. Security Scanning
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada checksum verification sebelum deployment? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah artifacts ditandatangani? | [ ] Ya / [ ] Tidak | |
-| 3 | Apakah ada SBOM (Software Bill of Materials)? | [ ] Ya / [ ] Tidak | |
-
----
-
-## Bagian B: Audit Source Code (src/app.py)
-
-### B1. Hardcoded Credentials
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada API key yang di-hardcode? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada password yang di-hardcode? | [ ] Ya / [ ] Tidak | |
-| 3 | List secrets yang ditemukan: | __________ | |
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | SAST dengan Bandit | [x] | `security-scan` job |
+| 2 | Dependency scanning | [x] | pip-audit, safety |
+| 3 | Scans berjalan sebelum build | [x] | Job ordering dengan `needs` |
 
 ---
 
-### B2. Code Injection
+## Bagian B: Application Security Controls
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada penggunaan `eval()`? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada penggunaan `exec()`? | [ ] Ya / [ ] Tidak | |
-| 3 | Apakah input divalidasi sebelum diproses? | [ ] Ya / [ ] Tidak | |
+### B1. Secrets Management
 
----
-
-### B3. Insecure Deserialization
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada penggunaan `pickle` untuk data eksternal? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada penggunaan `yaml.load()` tanpa Loader? | [ ] Ya / [ ] Tidak | |
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Tidak ada hardcoded API keys | [x] | Uses `os.getenv()` |
+| 2 | Tidak ada hardcoded passwords | [x] | Verified |
+| 3 | Secrets tidak di-print ke log | [x] | Only prints "Yes/No" for existence |
 
 ---
 
-### B4. Remote Code Execution
+### B2. Code Injection Prevention
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada fungsi yang download dan execute code? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah URL sumber terverifikasi? | [ ] Ya / [ ] Tidak | |
-
----
-
-## Bagian C: Ringkasan Temuan
-
-### C1. Daftar Kerentanan
-
-| No | Lokasi | Kerentanan | Severity | Line Number |
-|----|--------|------------|----------|-------------|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | | | | |
-| 4 | | | | |
-| 5 | | | | |
-
-**Severity Rating:**
-- 🔴 Critical - Dapat dieksploitasi langsung untuk RCE
-- 🟠 High - Supply chain risk atau credential exposure
-- 🟡 Medium - Security misconfiguration
-- 🟢 Low - Best practice violation
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Tidak menggunakan `eval()` | [x] | Uses `SafeCalculator` class |
+| 2 | Tidak menggunakan `exec()` | [x] | Verified |
+| 3 | AST-based expression evaluation | [x] | `ast.parse()` dengan operator whitelist |
 
 ---
 
-### C2. Rekomendasi Perbaikan
+### B3. Input Validation
 
-Untuk setiap kerentanan yang ditemukan, tuliskan rekomendasi perbaikan:
-
-| Kerentanan | Rekomendasi Perbaikan |
-|------------|----------------------|
-| | |
-| | |
-| | |
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Input di-validate sebelum diproses | [x] | `validate_input()` function |
+| 2 | Whitelist-based validation | [x] | `allowed_actions` list |
+| 3 | Length limits diterapkan | [x] | Max 50-200 chars per field |
 
 ---
 
-## Bagian D: Hands-on Exercise
+### B4. Safe Serialization
 
-### Exercise 1: Generate SHA256 Hash
-
-1. Buka file `src/app.py`
-2. Generate SHA256 hash menggunakan salah satu metode:
-
-**Windows PowerShell:**
-```powershell
-Get-FileHash src/app.py -Algorithm SHA256
-```
-
-**Linux/Mac:**
-```bash
-sha256sum src/app.py
-```
-
-**Online Tool:**
-- https://emn178.github.io/online-tools/sha256_checksum.html
-
-3. Catat hash yang dihasilkan: `__________________________________`
+| No | Kontrol | Status | Evidence |
+|----|---------|--------|----------|
+| 1 | Tidak menggunakan `pickle` untuk external data | [x] | Uses JSON |
+| 2 | JSON parsing dengan error handling | [x] | `load_data_safely()` |
+| 3 | Data structure validation | [x] | Validates dict type |
 
 ---
 
-### Exercise 2: Bandingkan dengan Branch Secure
+## Bagian C: Comparison Exercise
+
+### Instruksi
+
+Bandingkan branch `insecure` dengan branch `secure` untuk melihat perbedaan:
 
 ```bash
-# Checkout branch secure
+# Checkout insecure branch
+git checkout insecure
+
+# Lihat isi workflow
+cat .github/workflows/pipeline.yml
+
+# Checkout secure branch
 git checkout secure
 
-# Lihat perbedaan workflow
+# Bandingkan dengan diff
 git diff insecure secure -- .github/workflows/pipeline.yml
+git diff insecure secure -- src/app.py
 ```
 
-**Pertanyaan:**
-1. Apa perbedaan utama dalam version pinning? __________
-2. Tool keamanan apa yang ditambahkan? __________
-3. Bagaimana integrity verification dilakukan? __________
+### Pertanyaan Diskusi
+
+1. **Action Pinning:** Mengapa SHA lebih aman dari tag version?
+   > Tags dapat di-move ke commit yang berbeda, SHA tidak bisa
+
+2. **curl | bash:** Apa risiko menjalankan script langsung dari URL?
+   > Script bisa dimodifikasi oleh attacker (MITM, compromised server)
+
+3. **Dependency Pinning:** Bagaimana unpinned dependencies bisa dieksploitasi?
+   > Attacker bisa publish malicious version yang auto-installed
+
+4. **Checksum Verification:** Apa yang dideteksi oleh SHA256 check?
+   > Perubahan apapun pada file, termasuk tampering atau corruption
+
+5. **Least Privilege:** Mengapa `contents: read` lebih baik dari default?
+   > Default memberikan write access yang bisa dieksploitasi
 
 ---
 
-### Exercise 3: Simulasi Supply Chain Attack
+## Bagian D: Hands-on Verification
 
-**Skenario:** Bayangkan Anda adalah attacker yang ingin menyusupkan malicious code.
+### Exercise 1: Verify SHA256 Implementation
 
-1. Di branch `insecure`, modifikasi file `src/app.py`
-2. Push perubahan
-3. Observasi: Apakah pipeline mendeteksi perubahan?
+```bash
+# Calculate hash dari app.py
+sha256sum src/app.py
 
-**Di branch `secure`:**
-1. Modifikasi file `src/app.py`
-2. Push perubahan
-3. Observasi: Apa yang terjadi saat SHA256 verification?
+# Bandingkan dengan EXPECTED_APP_HASH di workflow
+grep EXPECTED_APP_HASH .github/workflows/pipeline.yml
+```
 
----
+### Exercise 2: Test Security Scanning
 
-## Jawaban (untuk Instruktur)
+```bash
+# Install tools
+pip install bandit pip-audit
 
-<details>
-<summary>Klik untuk melihat jawaban</summary>
+# Run Bandit
+bandit -r src/ -f txt
 
-### Kerentanan di Workflow:
-1. **Line 24-25**: Unpinned actions (`actions/checkout@v2`)
-2. **Line 40-43**: `curl | bash` tanpa verification
-3. **Line 18-20**: Hardcoded secrets di env
-4. **Line 45-49**: Secrets di-print ke log
-5. **Tidak ada**: permissions block (defaults to read-write)
-6. **Tidak ada**: Dependency scanning step
-7. **Tidak ada**: Checksum verification
+# Run pip-audit
+pip-audit -r src/requirements.txt
+```
 
-### Kerentanan di Code:
-1. **Line 17-20**: Hardcoded credentials
-2. **Line 27-34**: `eval()` pada user input
-3. **Line 37-44**: Insecure pickle deserialization
-4. **Line 47-58**: Download and execute remote code
-5. **Line 61-75**: Secrets printed in debug mode
+### Exercise 3: Test Input Validation
 
-</details>
+Modifikasi `src/app.py` dan tambahkan test case:
+
+```python
+# Di function main(), tambahkan:
+malicious = {"user_id": "user123", "action": "calculate", "payload": "__import__('os')"}
+result = process_request(malicious)
+print(f"Malicious input result: {result}")  # Should be blocked
+```
 
 ---
 
-**Selamat melakukan audit!** 🔍
+## Kesimpulan
+
+Branch `secure` mendemonstrasikan:
+
+1. **Defense in Depth** - Multiple layers of security controls
+2. **Shift Left Security** - Security checks early in pipeline
+3. **Supply Chain Security** - Protection against dependency attacks
+4. **Integrity Verification** - Detection of unauthorized modifications
+5. **Least Privilege** - Minimal permissions to reduce attack surface
+
+---
+
+**Selamat! Anda telah memverifikasi kontrol keamanan pipeline CI/CD.** ✅
 

