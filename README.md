@@ -1,191 +1,192 @@
-# CI/CD Pipeline Security Audit Lab
+# CI/CD Pipeline Security Audit Lab - DevSecOps Branch
 
-## Hands-on: Audit Keamanan Pipeline CI/CD Sederhana
+## Branch: `devsecops`
 
-Lab ini adalah bagian dari sesi **Software and Data Integrity Failures** (OWASP A08:2021) pada bootcamp cybersecurity Dibimbing.id.
-
----
-
-## Tujuan Pembelajaran
-
-Setelah menyelesaikan lab ini, peserta akan mampu:
-
-1. **Mengidentifikasi** kerentanan supply chain dalam pipeline CI/CD
-2. **Memahami** pentingnya integritas data dan software dalam DevSecOps
-3. **Melakukan audit** keamanan pada workflow GitHub Actions
-4. **Menerapkan** teknik mitigasi seperti SHA256 checksum verification dan dependency pinning
-5. **Membandingkan** praktik insecure vs secure dalam CI/CD pipeline
+Ini adalah branch **DevSecOps** yang mendemonstrasikan bagaimana **security gates** dalam pipeline CI/CD mendeteksi dan **memblokir** kode yang vulnerable.
 
 ---
 
-## Struktur Repository
-
-Repository ini memiliki **dua branch** untuk perbandingan:
-
-| Branch | Deskripsi |
-|--------|-----------|
-| `insecure` | Pipeline dengan kerentanan keamanan (untuk di-audit) |
-| `secure` | Pipeline dengan kontrol keamanan DevSecOps |
+## Konsep: Security Gate dalam DevSecOps
 
 ```
-.github/workflows/
-  pipeline.yml          # CI/CD workflow (berbeda di setiap branch)
-src/
-  app.py                # Aplikasi Python (berbeda di setiap branch)
-  requirements.txt      # Dependencies
-README.md               # Dokumentasi
-AUDIT_CHECKLIST.md      # Panduan audit untuk peserta
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   COMMIT    │───▶│  SECURITY   │───▶│    BUILD    │───▶│   DEPLOY    │
+│             │    │    SCAN     │    │             │    │             │
+└─────────────┘    └──────┬──────┘    └─────────────┘    └─────────────┘
+                          │
+                    ┌─────▼─────┐
+                    │  ❌ FAIL  │  ◀── Pipeline berhenti di sini!
+                    │ (blocked) │
+                    └───────────┘
+```
+
+**Branch ini berisi:**
+- **INSECURE CODE** - Kode dengan kerentanan (sama seperti branch `insecure`)
+- **SECURE PIPELINE** - Pipeline dengan security gates yang ketat
+
+**Hasil:** Pipeline akan **GAGAL** karena security tools mendeteksi kerentanan!
+
+---
+
+## Apa yang Terjadi Saat Pipeline Berjalan?
+
+### Stage 1: Security Scan ❌ FAIL
+
+```
+🔍 Running Bandit Static Analysis (STRICT)
+============================================
+>> Issue: [B307:eval] Use of possibly insecure function - consider using safer ast.literal_eval.
+   Severity: Medium   Confidence: High
+   Location: src/app.py:35
+
+>> Issue: [B102:exec_used] Use of exec detected.
+   Severity: Medium   Confidence: High
+   Location: src/app.py:58
+
+>> Issue: [B301:pickle] Pickle and modules that wrap it can be unsafe.
+   Severity: Medium   Confidence: High
+   Location: src/app.py:44
+
+🚨 SECURITY GATE FAILED - Vulnerabilities detected!
+```
+
+### Stage 2: Code Quality ❌ FAIL
+
+```
+🔍 Scanning for Hardcoded Secrets
+============================================
+🚨 ALERT: Hardcoded API keys found!
+   src/app.py:17: API_KEY = "sk-production-key-super-secret-12345"
+   
+🚨 ALERT: Hardcoded passwords found!
+   src/app.py:18: DATABASE_PASSWORD = "admin123"
+```
+
+### Stage 3: Build ⏭️ SKIPPED
+
+```
+Build stage skipped because security-scan failed.
+```
+
+### Stage 4: Deploy ⏭️ SKIPPED
+
+```
+Deploy stage skipped - security gate blocked deployment.
+✅ Security Gate: WORKING AS EXPECTED
+❌ Deployment: BLOCKED
 ```
 
 ---
 
-## Koneksi dengan Materi
+## Perbandingan 3 Branch
 
-### Supply Chain Attack
-
-**Definisi:** Serangan yang menargetkan elemen kurang aman dalam rantai pasokan software, seperti dependencies, build tools, atau CI/CD pipeline.
-
-**Contoh Nyata - SolarWinds Attack (2020):**
-- Attacker menyusup ke sistem build SolarWinds
-- Menyisipkan backdoor (SUNBURST) ke dalam update software Orion
-- 18.000+ organisasi terinfeksi termasuk pemerintah AS
-- Tidak terdeteksi selama berbulan-bulan karena update ditandatangani dengan sertifikat valid
-
-**Dalam Lab Ini:**
-- Branch `insecure` mendemonstrasikan vektor serangan serupa
-- Penggunaan `curl | bash` dari sumber tidak terpercaya
-- Dependencies tanpa version pinning
-- Tidak ada verifikasi integritas
-
-### Teknik Mitigasi
-
-| Teknik | Implementasi di Lab |
-|--------|---------------------|
-| **Code Signing** | SHA256 checksum verification di branch `secure` |
-| **Dependency Pinning** | requirements.txt dengan hash verification |
-| **SAST** | Bandit untuk static analysis |
-| **Dependency Scanning** | pip-audit untuk vulnerability scanning |
-| **Least Privilege** | Minimal permissions di workflow |
+| Aspek | `insecure` | `devsecops` | `secure` |
+|-------|------------|-------------|----------|
+| **Kode** | Vulnerable | Vulnerable | Secure |
+| **Pipeline** | Tidak aman | Aman (strict) | Aman |
+| **Hasil** | ✅ Pass (berbahaya!) | ❌ Fail (benar!) | ✅ Pass |
+| **Deploy** | Ya (buruk) | Tidak (bagus) | Ya (aman) |
 
 ---
 
-## Cara Menggunakan Lab Ini
+## Kerentanan yang Dideteksi
 
-### Langkah 1: Audit Branch Insecure
+Security gate mendeteksi kerentanan berikut:
+
+| Tool | Kerentanan | Severity | File:Line |
+|------|------------|----------|-----------|
+| Bandit | `eval()` usage (B307) | Medium | app.py:35 |
+| Bandit | `exec()` usage (B102) | Medium | app.py:58 |
+| Bandit | `pickle` usage (B301) | Medium | app.py:44 |
+| Grep | Hardcoded API_KEY | High | app.py:17 |
+| Grep | Hardcoded PASSWORD | High | app.py:18 |
+| Grep | Hardcoded TOKEN | High | app.py:19 |
+
+---
+
+## Cara Melihat Pipeline Gagal
+
+### Option 1: Jalankan di GitHub Actions
+
+1. Fork repository ini
+2. Checkout branch `devsecops`
+3. Buka tab **Actions**
+4. Klik **Run workflow**
+5. Lihat pipeline **GAGAL** dengan security findings
+
+### Option 2: Jalankan Lokal
 
 ```bash
-# Clone repository
-git clone https://github.com/yogikortisa/secure-pipeline-audit.git
+# Clone dan checkout
+git clone https://github.com/batamhacker/secure-pipeline-audit.git
 cd secure-pipeline-audit
+git checkout devsecops
 
-# Checkout branch insecure
-git checkout insecure
+# Install Bandit
+pip install bandit
 
-# Review workflow file
-cat .github/workflows/pipeline.yml
+# Jalankan Bandit (akan menemukan vulnerabilities)
+bandit -r src/ -ll -ii
 
-# Review application code
-cat src/app.py
+# Output akan menunjukkan security issues!
 ```
-
-**Tugas:** Gunakan `AUDIT_CHECKLIST.md` untuk mengidentifikasi semua kerentanan.
-
-### Langkah 2: Bandingkan dengan Branch Secure
-
-```bash
-# Checkout branch secure
-git checkout secure
-
-# Bandingkan workflow
-git diff insecure secure -- .github/workflows/pipeline.yml
-
-# Bandingkan kode aplikasi
-git diff insecure secure -- src/app.py
-```
-
-### Langkah 3: Verifikasi SHA256 Checksum
-
-**Menggunakan SHA256 Hash Generator:**
-
-```bash
-# Di Linux/Mac
-sha256sum src/app.py
-
-# Di Windows PowerShell
-Get-FileHash src/app.py -Algorithm SHA256
-
-# Online tool: https://emn178.github.io/online-tools/sha256_checksum.html
-```
-
-### Langkah 4: Jalankan Pipeline
-
-1. Fork repository ini ke akun GitHub Anda
-2. Buka tab **Actions**
-3. Jalankan workflow dan observasi hasilnya
-4. Bandingkan log dari branch `insecure` vs `secure`
 
 ---
 
-## Kerentanan yang Didemonstrasikan
+## Mengapa Pipeline Harus GAGAL?
 
-### Di Branch `insecure`:
+Ini adalah **expected behavior** dalam DevSecOps:
 
-**Workflow (pipeline.yml):**
-- [ ] Unpinned GitHub Actions (supply chain risk)
-- [ ] `curl | bash` dari sumber eksternal
-- [ ] Tidak ada dependency scanning
-- [ ] Tidak ada integrity verification
-- [ ] Secrets di-print ke log
-- [ ] Permissions terlalu permissive
+1. **Shift Left Security** - Masalah keamanan terdeteksi lebih awal
+2. **Fail Fast** - Pipeline berhenti sebelum kode berbahaya di-deploy
+3. **Automated Gates** - Tidak bergantung pada review manual saja
+4. **Compliance** - Memenuhi standar keamanan organisasi
 
-**Kode (app.py):**
-- [ ] Hardcoded credentials
-- [ ] Penggunaan `eval()` pada input
-- [ ] Insecure deserialization (pickle)
-- [ ] Download dan execute remote code
-- [ ] Tidak ada input validation
-
-### Di Branch `secure`:
-
-**Workflow (pipeline.yml):**
-- [x] Actions di-pin dengan SHA commit hash
-- [x] Tidak ada remote script execution
-- [x] Dependency scanning dengan pip-audit
-- [x] SHA256 checksum verification
-- [x] Static analysis dengan Bandit
-- [x] Minimal permissions
-
-**Kode (app.py):**
-- [x] Tidak ada hardcoded secrets
-- [x] Safe expression evaluation
-- [x] Input validation
-- [x] Tidak ada insecure deserialization
+> **Quote:** "A failing security gate is a SUCCESSFUL security control."
 
 ---
 
-## Tools yang Digunakan
+## Cara Memperbaiki (Untuk Lulus Pipeline)
 
-| Tool | Fungsi |
-|------|--------|
-| **SHA256 Hash Generator** | Verifikasi integritas file |
-| **Bandit** | Static Application Security Testing (SAST) untuk Python |
-| **pip-audit** | Dependency vulnerability scanning |
-| **GitHub Actions** | CI/CD platform |
+Untuk membuat pipeline berhasil, perbaiki kerentanan:
+
+```python
+# INSECURE (akan gagal)
+result = eval(expression)
+
+# SECURE (akan lulus)
+import ast
+result = ast.literal_eval(expression)
+```
+
+```python
+# INSECURE (akan gagal)
+API_KEY = "sk-production-key-12345"
+
+# SECURE (akan lulus)
+API_KEY = os.getenv("API_KEY")
+```
+
+Atau, checkout branch `secure` untuk melihat kode yang sudah diperbaiki.
+
+---
+
+## Tools Security Gate
+
+| Tool | Fungsi | Exit Code |
+|------|--------|-----------|
+| **Bandit** | Static code analysis untuk Python | ≠0 jika ada issue |
+| **pip-audit** | Dependency vulnerability scan | ≠0 jika ada CVE |
+| **Grep** | Pattern matching untuk secrets | ≠0 jika ditemukan |
 
 ---
 
 ## Referensi
 
-- [OWASP A08:2021 - Software and Data Integrity Failures](https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/)
-- [GitHub Actions Security Hardening](https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions)
-- [SolarWinds Attack Analysis](https://www.crowdstrike.com/blog/sunspot-malware-technical-analysis/)
-- [Supply Chain Security Best Practices](https://slsa.dev/)
-
----
-
-## Catatan Penting
-
-> **PERINGATAN:** Kode di branch `insecure` sengaja dibuat vulnerable untuk tujuan edukasi. **JANGAN** gunakan pattern tersebut di environment production.
+- [OWASP DevSecOps Guideline](https://owasp.org/www-project-devsecops-guideline/)
+- [Bandit Documentation](https://bandit.readthedocs.io/)
+- [GitHub Actions Security](https://docs.github.com/en/actions/security-guides)
+- [NIST DevSecOps](https://csrc.nist.gov/publications/detail/sp/800-204d/draft)
 
 ---
 

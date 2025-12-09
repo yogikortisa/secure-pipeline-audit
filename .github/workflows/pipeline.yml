@@ -1,85 +1,239 @@
-# INSECURE CI/CD Pipeline - FOR EDUCATIONAL PURPOSES ONLY
-# This workflow contains intentional security vulnerabilities to demonstrate
-# Software and Data Integrity Failures (OWASP A08:2021)
+# DevSecOps CI/CD Pipeline - Security Gates Demo
+# This pipeline demonstrates how DevSecOps catches vulnerabilities
+# 
+# PURPOSE: This branch has INSECURE CODE but SECURE PIPELINE
+# The pipeline WILL FAIL because security tools detect the vulnerabilities
 #
-# VULNERABILITIES IN THIS WORKFLOW:
-# 1. Unpinned actions (no SHA pinning) - Supply chain risk
-# 2. Downloads and executes remote script (curl | bash) - Code injection risk
-# 3. No dependency vulnerability scanning
-# 4. No integrity verification of code/artifacts
-# 5. Overly permissive permissions
-# 6. Secrets potentially exposed in logs
-# 7. Uses pull_request_target unsafely
+# This demonstrates:
+# - How Bandit catches code injection (eval, exec, pickle)
+# - How security gates prevent vulnerable code from being deployed
+# - The "shift left" security approach in action
 
-name: Insecure CI Pipeline
+name: DevSecOps Pipeline (Will Fail)
 
 on:
   push:
-    branches: [ insecure, main ]
-  pull_request_target:  # VULNERABLE: Allows workflow to run with write permissions on fork PRs
-    branches: [ insecure, main ]
+    branches: [ devsecops, main ]
+  pull_request:
+    branches: [ devsecops, main ]
   workflow_dispatch:
 
-# VULNERABLE: No permissions restrictions - defaults to read-write for everything
-# permissions: not specified = full access
+# SECURE: Explicitly define minimal permissions
+permissions:
+  contents: read
+  actions: read
+  security-events: write
 
 env:
-  # VULNERABLE: Hardcoded sensitive information in workflow file
-  API_KEY: "sk-demo-insecure-key-12345"
-  DATABASE_URL: "postgresql://admin:password123@localhost:5432/mydb"
+  PYTHON_VERSION: '3.11'
 
 jobs:
-  build:
+  # ============================================
+  # STAGE 1: Security Scanning (WILL FAIL HERE)
+  # ============================================
+  security-scan:
+    name: "🔒 Security Scan (Gate)"
     runs-on: ubuntu-latest
     
     steps:
-      # VULNERABLE: Using unpinned action version (v2 tag can be moved to malicious commit)
+      # SECURE: Action pinned with full SHA commit hash
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
       
-      # VULNERABLE: Using unpinned action version
+      # SECURE: Action pinned with full SHA commit hash
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236  # v4.7.1
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
       
-      # VULNERABLE: Installing dependencies without pinned versions
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+      
+      # ⚠️ THIS STEP WILL FAIL - Bandit finds vulnerabilities in insecure code
+      - name: "🚨 SAST - Bandit Security Scan (STRICT MODE)"
+        id: bandit
+        run: |
+          echo "============================================"
+          echo "🔍 Running Bandit Static Analysis (STRICT)"
+          echo "============================================"
+          echo ""
+          echo "Scanning for:"
+          echo "  - eval() usage (B307)"
+          echo "  - exec() usage (B102)"
+          echo "  - Hardcoded passwords (B105, B106)"
+          echo "  - Pickle usage (B301)"
+          echo "  - Shell injection (B602, B603)"
+          echo ""
+          
+          # Run Bandit in STRICT mode - exits with error if issues found
+          # -ll = medium and high severity
+          # -ii = medium and high confidence  
+          bandit -r src/ -ll -ii -f txt
+          
+          # If we reach here, no issues found (won't happen with insecure code)
+          echo "✅ No security issues found"
+        continue-on-error: false  # STRICT: Fail the pipeline on security issues
+      
+      # ⚠️ THIS STEP MAY ALSO FAIL - Safety checks for known vulnerabilities
+      - name: "🚨 Dependency Vulnerability Scan"
+        if: always()
+        run: |
+          echo "============================================"
+          echo "🔍 Scanning Dependencies for Vulnerabilities"
+          echo "============================================"
+          echo ""
+          
+          # Check if requirements has pinned versions
+          echo "Checking requirements.txt format..."
+          if grep -qE "^[a-zA-Z]+==" src/requirements.txt; then
+            echo "✅ Some dependencies are pinned"
+          else
+            echo "⚠️  WARNING: Unpinned dependencies detected!"
+            echo "   This is a supply chain security risk."
+          fi
+          echo ""
+          
+          # Install dependencies first (needed for pip-audit)
+          pip install -r src/requirements.txt 2>/dev/null || true
+          
+          # Run pip-audit
+          echo "Running pip-audit..."
+          pip-audit --strict --desc 2>&1 || echo "⚠️ pip-audit found issues or dependencies not fully installed"
+
+  # ============================================
+  # STAGE 2: Code Quality (Runs even if Stage 1 fails)
+  # ============================================
+  code-quality:
+    name: "📋 Code Quality Check"
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
+      
+      - name: Set up Python
+        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236  # v4.7.1
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: "🔍 Check for Hardcoded Secrets"
+        run: |
+          echo "============================================"
+          echo "🔍 Scanning for Hardcoded Secrets"
+          echo "============================================"
+          echo ""
+          
+          # Simple grep for common secret patterns
+          echo "Checking for hardcoded API keys..."
+          if grep -rn "API_KEY\s*=\s*['\"]" src/ --include="*.py"; then
+            echo ""
+            echo "🚨 ALERT: Hardcoded API keys found!"
+            exit 1
+          fi
+          
+          echo "Checking for hardcoded passwords..."
+          if grep -rn "PASSWORD\s*=\s*['\"]" src/ --include="*.py"; then
+            echo ""
+            echo "🚨 ALERT: Hardcoded passwords found!"
+            exit 1
+          fi
+          
+          echo "Checking for hardcoded tokens..."
+          if grep -rn "TOKEN\s*=\s*['\"]" src/ --include="*.py"; then
+            echo ""
+            echo "🚨 ALERT: Hardcoded tokens found!"
+            exit 1
+          fi
+          
+          echo "✅ No hardcoded secrets pattern found"
+        continue-on-error: false
+
+  # ============================================
+  # STAGE 3: Build (Only runs if security passes)
+  # ============================================
+  build:
+    name: "🏗️ Build & Test"
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality]
+    # This job will be SKIPPED because security-scan fails
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
+      
+      - name: Set up Python
+        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236  # v4.7.1
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r src/requirements.txt
       
-      # VULNERABLE: Downloading and executing remote script without verification
-      # This is a classic supply chain attack vector (similar to what happened in various attacks)
-      - name: Run setup script from remote source
-        run: |
-          echo "Downloading setup script from remote server..."
-          curl -sSL https://raw.githubusercontent.com/yogikortisa/secure-pipeline-audit/insecure/scripts/setup.sh | bash
-        continue-on-error: true  # Ignoring errors is also a bad practice
-      
-      # VULNERABLE: Printing environment variables (could expose secrets)
-      - name: Debug environment
-        run: |
-          echo "=== Environment Variables ==="
-          echo "API_KEY: $API_KEY"
-          echo "DATABASE_URL: $DATABASE_URL"
-          env | grep -i secret || true
-          env | grep -i key || true
-      
-      # VULNERABLE: No static code analysis or security scanning
       - name: Run application
         run: |
           cd src
           python app.py
-      
-      # VULNERABLE: No integrity verification before deployment
-      - name: Deploy (simulated)
+
+  # ============================================
+  # STAGE 4: Deploy (Only runs if all stages pass)
+  # ============================================
+  deploy:
+    name: "🚀 Deploy"
+    runs-on: ubuntu-latest
+    needs: [build]
+    # This job will be SKIPPED because build depends on failed security-scan
+    
+    steps:
+      - name: Deploy application
         run: |
-          echo "Deploying application without any integrity checks..."
-          echo "No checksum verification performed"
-          echo "No signature verification performed"
-          echo "Deployment complete!"
+          echo "============================================"
+          echo "🚀 Deployment Stage"
+          echo "============================================"
+          echo ""
+          echo "This stage would deploy the application."
+          echo "However, it will NEVER run because:"
+          echo "  ❌ Security scan failed"
+          echo "  ❌ Build was skipped"
+          echo ""
+          echo "This demonstrates the security gate working!"
 
-  # VULNERABLE: No security scanning job
-  # Missing: dependency scanning, SAST, secrets scanning, SBOM generation
-
+  # ============================================
+  # SUMMARY: Report security findings
+  # ============================================
+  security-report:
+    name: "📊 Security Report"
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality]
+    if: always()
+    
+    steps:
+      - name: Generate Security Summary
+        run: |
+          echo "============================================"
+          echo "📊 SECURITY GATE SUMMARY"
+          echo "============================================"
+          echo ""
+          echo "This pipeline demonstrates DevSecOps in action."
+          echo ""
+          echo "The INSECURE code contains:"
+          echo "  🚨 eval() - Code injection vulnerability"
+          echo "  🚨 exec() - Remote code execution"
+          echo "  🚨 pickle - Insecure deserialization"
+          echo "  🚨 Hardcoded credentials"
+          echo "  🚨 Unpinned dependencies"
+          echo ""
+          echo "The SECURE pipeline detected these issues and"
+          echo "BLOCKED the deployment."
+          echo ""
+          echo "============================================"
+          echo "✅ Security Gate: WORKING AS EXPECTED"
+          echo "❌ Deployment: BLOCKED"
+          echo "============================================"
+          echo ""
+          echo "To fix: Switch to the 'secure' branch which has"
+          echo "the corrected code that passes all security checks."

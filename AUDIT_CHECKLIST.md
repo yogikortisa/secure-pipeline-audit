@@ -1,218 +1,210 @@
-# Audit Checklist - CI/CD Pipeline Security
+# DevSecOps Security Gate - Observation Checklist
 
-## Panduan Audit untuk Branch `insecure`
+## Branch: `devsecops`
 
-Gunakan checklist ini untuk melakukan audit keamanan pada pipeline CI/CD. Centang setiap kerentanan yang Anda temukan.
-
----
-
-## Bagian A: Audit Workflow (.github/workflows/pipeline.yml)
-
-### A1. Supply Chain - GitHub Actions
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah actions menggunakan version pinning dengan SHA? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada actions dari third-party yang tidak terverifikasi? | [ ] Ya / [ ] Tidak | |
-| 3 | Versi apa yang digunakan untuk `actions/checkout`? | __________ | |
-
-**Kerentanan yang dicari:**
-```yaml
-# INSECURE - hanya menggunakan tag
-uses: actions/checkout@v2
-
-# SECURE - menggunakan full SHA
-uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
-```
+Gunakan checklist ini untuk mengobservasi bagaimana security gate bekerja dalam pipeline DevSecOps.
 
 ---
 
-### A2. Supply Chain - External Scripts
+## Bagian A: Observasi Pipeline
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada command `curl | bash` atau sejenisnya? | [ ] Ya / [ ] Tidak | |
-| 2 | Dari URL mana script didownload? | __________ | |
-| 3 | Apakah ada verifikasi checksum sebelum eksekusi? | [ ] Ya / [ ] Tidak | |
+### A1. Jalankan Pipeline
 
-**Pattern berbahaya:**
-```bash
-# INSECURE - langsung execute tanpa verifikasi
-curl -sSL https://example.com/script.sh | bash
+1. Fork repository ini (jika belum)
+2. Pastikan Anda di branch `devsecops`
+3. Buka tab **Actions** di GitHub
+4. Klik **Run workflow** → **Run workflow**
+5. Tunggu pipeline selesai
 
-# SECURE - download, verify, then execute
-curl -sSL -o script.sh https://example.com/script.sh
-echo "expected_sha256_hash  script.sh" | sha256sum -c -
-bash script.sh
-```
+### A2. Observasi Hasil
 
----
-
-### A3. Dependency Management
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah requirements.txt menggunakan version pinning? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada dependency scanning (pip-audit, safety)? | [ ] Ya / [ ] Tidak | |
-| 3 | List dependencies tanpa version: | __________ | |
+| Stage | Expected Result | Actual Result |
+|-------|-----------------|---------------|
+| Security Scan | ❌ FAIL | [ ] FAIL / [ ] PASS |
+| Code Quality | ❌ FAIL | [ ] FAIL / [ ] PASS |
+| Build | ⏭️ SKIPPED | [ ] SKIPPED / [ ] RAN |
+| Deploy | ⏭️ SKIPPED | [ ] SKIPPED / [ ] RAN |
 
 ---
 
-### A4. Secrets Management
+## Bagian B: Analisis Security Findings
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada hardcoded secrets di workflow file? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah secrets di-print ke log? | [ ] Ya / [ ] Tidak | |
-| 3 | Apakah menggunakan GitHub Secrets dengan benar? | [ ] Ya / [ ] Tidak | |
+### B1. Bandit Findings
 
----
+Buka log dari job **Security Scan** dan catat findings:
 
-### A5. Permissions
+| Issue ID | Description | File | Line |
+|----------|-------------|------|------|
+| B307 | | | |
+| B102 | | | |
+| B301 | | | |
+| B105/B106 | | | |
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah permissions didefinisikan secara eksplisit? | [ ] Ya / [ ] Tidak | |
-| 2 | Apa permission level yang digunakan? | __________ | |
-| 3 | Apakah mengikuti principle of least privilege? | [ ] Ya / [ ] Tidak | |
+### B2. Hardcoded Secrets
 
----
+Buka log dari job **Code Quality** dan catat findings:
 
-### A6. Integrity Verification
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada checksum verification sebelum deployment? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah artifacts ditandatangani? | [ ] Ya / [ ] Tidak | |
-| 3 | Apakah ada SBOM (Software Bill of Materials)? | [ ] Ya / [ ] Tidak | |
+| Pattern | Found? | Location |
+|---------|--------|----------|
+| API_KEY = "..." | [ ] Ya / [ ] Tidak | |
+| PASSWORD = "..." | [ ] Ya / [ ] Tidak | |
+| TOKEN = "..." | [ ] Ya / [ ] Tidak | |
 
 ---
 
-## Bagian B: Audit Source Code (src/app.py)
+## Bagian C: Pertanyaan Diskusi
 
-### B1. Hardcoded Credentials
+### C1. Security Gate Effectiveness
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada API key yang di-hardcode? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada password yang di-hardcode? | [ ] Ya / [ ] Tidak | |
-| 3 | List secrets yang ditemukan: | __________ | |
+1. **Mengapa pipeline gagal?**
+   > _Jawaban Anda:_ ________________________________
 
----
+2. **Apakah kegagalan ini hal yang baik atau buruk? Mengapa?**
+   > _Jawaban Anda:_ ________________________________
 
-### B2. Code Injection
+3. **Apa yang akan terjadi jika tidak ada security gate?**
+   > _Jawaban Anda:_ ________________________________
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada penggunaan `eval()`? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada penggunaan `exec()`? | [ ] Ya / [ ] Tidak | |
-| 3 | Apakah input divalidasi sebelum diproses? | [ ] Ya / [ ] Tidak | |
+### C2. DevSecOps Principles
 
----
+4. **Apa yang dimaksud dengan "Shift Left Security"?**
+   > _Jawaban Anda:_ ________________________________
 
-### B3. Insecure Deserialization
+5. **Mengapa automated security gates lebih baik daripada hanya manual code review?**
+   > _Jawaban Anda:_ ________________________________
 
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada penggunaan `pickle` untuk data eksternal? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah ada penggunaan `yaml.load()` tanpa Loader? | [ ] Ya / [ ] Tidak | |
+### C3. Comparison
 
----
+6. **Bandingkan hasil pipeline di 3 branch:**
 
-### B4. Remote Code Execution
-
-| No | Pertanyaan Audit | Temuan | Risiko |
-|----|------------------|--------|--------|
-| 1 | Apakah ada fungsi yang download dan execute code? | [ ] Ya / [ ] Tidak | |
-| 2 | Apakah URL sumber terverifikasi? | [ ] Ya / [ ] Tidak | |
-
----
-
-## Bagian C: Ringkasan Temuan
-
-### C1. Daftar Kerentanan
-
-| No | Lokasi | Kerentanan | Severity | Line Number |
-|----|--------|------------|----------|-------------|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | | | | |
-| 4 | | | | |
-| 5 | | | | |
-
-**Severity Rating:**
-- 🔴 Critical - Dapat dieksploitasi langsung untuk RCE
-- 🟠 High - Supply chain risk atau credential exposure
-- 🟡 Medium - Security misconfiguration
-- 🟢 Low - Best practice violation
-
----
-
-### C2. Rekomendasi Perbaikan
-
-Untuk setiap kerentanan yang ditemukan, tuliskan rekomendasi perbaikan:
-
-| Kerentanan | Rekomendasi Perbaikan |
-|------------|----------------------|
-| | |
-| | |
-| | |
+   | Branch | Pipeline Result | Apakah Ini Aman? |
+   |--------|-----------------|------------------|
+   | `insecure` | | |
+   | `devsecops` | | |
+   | `secure` | | |
 
 ---
 
 ## Bagian D: Hands-on Exercise
 
-### Exercise 1: Generate SHA256 Hash
+### Exercise 1: Jalankan Bandit Lokal
 
-1. Buka file `src/app.py`
-2. Generate SHA256 hash menggunakan salah satu metode:
-
-**Windows PowerShell:**
-```powershell
-Get-FileHash src/app.py -Algorithm SHA256
-```
-
-**Linux/Mac:**
 ```bash
-sha256sum src/app.py
+# Install Bandit
+pip install bandit
+
+# Jalankan scan
+bandit -r src/ -ll -ii -f txt
+
+# Atau dengan format JSON untuk detail lebih
+bandit -r src/ -ll -ii -f json
 ```
 
-**Online Tool:**
-- https://emn178.github.io/online-tools/sha256_checksum.html
+**Pertanyaan:** Berapa total issues yang ditemukan? _____
 
-3. Catat hash yang dihasilkan: `__________________________________`
+### Exercise 2: Cari Hardcoded Secrets
+
+```bash
+# Cari API keys
+grep -rn "API_KEY\s*=\s*['\"]" src/
+
+# Cari passwords
+grep -rn "PASSWORD\s*=\s*['\"]" src/
+
+# Cari tokens
+grep -rn "TOKEN\s*=\s*['\"]" src/
+```
+
+**Pertanyaan:** Di baris berapa secrets ditemukan?
+- API_KEY: Line _____
+- PASSWORD: Line _____
+- TOKEN: Line _____
+
+### Exercise 3: Fix One Vulnerability
+
+1. Edit `src/app.py`
+2. Ganti satu instance `eval()` dengan alternatif aman
+3. Jalankan Bandit lagi
+4. Apakah jumlah findings berkurang?
+
+**Before fix:** _____ issues
+**After fix:** _____ issues
 
 ---
 
-### Exercise 2: Bandingkan dengan Branch Secure
+## Bagian E: Security Gate Architecture
 
-```bash
-# Checkout branch secure
-git checkout secure
+### E1. Pipeline Flow Diagram
 
-# Lihat perbedaan workflow
-git diff insecure secure -- .github/workflows/pipeline.yml
+```
+┌──────────────┐
+│   Developer  │
+│   Push Code  │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐     ┌──────────────┐
+│   Checkout   │────▶│   SECURITY   │
+│     Code     │     │    SCAN      │
+└──────────────┘     └──────┬───────┘
+                            │
+                     ┌──────▼───────┐
+                     │  Vuln Found? │
+                     └──────┬───────┘
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+        ┌─────▼─────┐               ┌─────▼─────┐
+        │    YES    │               │    NO     │
+        │  ❌ FAIL  │               │  ✅ PASS  │
+        └─────┬─────┘               └─────┬─────┘
+              │                           │
+              ▼                           ▼
+        ┌───────────┐               ┌───────────┐
+        │   STOP    │               │   BUILD   │
+        │ Pipeline  │               │   STAGE   │
+        └───────────┘               └─────┬─────┘
+                                          │
+                                          ▼
+                                    ┌───────────┐
+                                    │  DEPLOY   │
+                                    └───────────┘
 ```
 
-**Pertanyaan:**
-1. Apa perbedaan utama dalam version pinning? __________
-2. Tool keamanan apa yang ditambahkan? __________
-3. Bagaimana integrity verification dilakukan? __________
+### E2. Identifikasi Stage
+
+Untuk setiap stage, identifikasi:
+
+| Stage | Tool yang Digunakan | Apa yang Dicek |
+|-------|---------------------|----------------|
+| Security Scan | | |
+| Code Quality | | |
+| Build | | |
+| Deploy | | |
 
 ---
 
-### Exercise 3: Simulasi Supply Chain Attack
+## Bagian F: Kesimpulan
 
-**Skenario:** Bayangkan Anda adalah attacker yang ingin menyusupkan malicious code.
+### F1. Key Takeaways
 
-1. Di branch `insecure`, modifikasi file `src/app.py`
-2. Push perubahan
-3. Observasi: Apakah pipeline mendeteksi perubahan?
+Setelah mengobservasi branch `devsecops`, saya memahami bahwa:
 
-**Di branch `secure`:**
-1. Modifikasi file `src/app.py`
-2. Push perubahan
-3. Observasi: Apa yang terjadi saat SHA256 verification?
+1. [ ] Security gates dapat mendeteksi vulnerabilities secara otomatis
+2. [ ] Pipeline yang gagal karena security issue adalah hal yang BAIK
+3. [ ] DevSecOps mengintegrasikan security ke dalam CI/CD pipeline
+4. [ ] Tools seperti Bandit dapat menemukan code injection vulnerabilities
+5. [ ] Hardcoded secrets dapat dideteksi dengan pattern matching
+
+### F2. Reflection
+
+**Apa yang paling mengejutkan Anda dari observasi ini?**
+
+> _Jawaban Anda:_ ________________________________
+
+**Bagaimana Anda akan menerapkan konsep ini di project Anda?**
+
+> _Jawaban Anda:_ ________________________________
 
 ---
 
@@ -221,25 +213,33 @@ git diff insecure secure -- .github/workflows/pipeline.yml
 <details>
 <summary>Klik untuk melihat jawaban</summary>
 
-### Kerentanan di Workflow:
-1. **Line 24-25**: Unpinned actions (`actions/checkout@v2`)
-2. **Line 40-43**: `curl | bash` tanpa verification
-3. **Line 18-20**: Hardcoded secrets di env
-4. **Line 45-49**: Secrets di-print ke log
-5. **Tidak ada**: permissions block (defaults to read-write)
-6. **Tidak ada**: Dependency scanning step
-7. **Tidak ada**: Checksum verification
+### Bandit Findings:
+- **B307**: eval() usage - Line 35
+- **B102**: exec() usage - Line 58  
+- **B301**: pickle usage - Line 44
+- **B105/B106**: Hardcoded password - Lines 17-20
 
-### Kerentanan di Code:
-1. **Line 17-20**: Hardcoded credentials
-2. **Line 27-34**: `eval()` pada user input
-3. **Line 37-44**: Insecure pickle deserialization
-4. **Line 47-58**: Download and execute remote code
-5. **Line 61-75**: Secrets printed in debug mode
+### Hardcoded Secrets:
+- API_KEY: Line 17
+- DATABASE_PASSWORD: Line 18
+- SECRET_TOKEN: Line 19
+
+### Discussion Answers:
+1. Pipeline gagal karena Bandit mendeteksi vulnerabilities
+2. Ini adalah hal BAIK - mencegah vulnerable code ter-deploy
+3. Tanpa security gate, kode vulnerable akan di-deploy ke production
+4. Shift Left = mendeteksi masalah keamanan lebih awal di development cycle
+5. Automated gates: konsisten, tidak lelah, tidak ada human error, scalable
+
+### Comparison:
+| Branch | Result | Aman? |
+|--------|--------|-------|
+| insecure | PASS | ❌ TIDAK (berbahaya!) |
+| devsecops | FAIL | ✅ YA (gate bekerja) |
+| secure | PASS | ✅ YA (kode aman) |
 
 </details>
 
 ---
 
-**Selamat melakukan audit!** 🔍
-
+**Selamat mengobservasi DevSecOps pipeline!** 🔐
