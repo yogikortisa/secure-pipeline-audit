@@ -1,0 +1,85 @@
+# INSECURE CI/CD Pipeline - FOR EDUCATIONAL PURPOSES ONLY
+# This workflow contains intentional security vulnerabilities to demonstrate
+# Software and Data Integrity Failures (OWASP A08:2021)
+#
+# VULNERABILITIES IN THIS WORKFLOW:
+# 1. Unpinned actions (no SHA pinning) - Supply chain risk
+# 2. Downloads and executes remote script (curl | bash) - Code injection risk
+# 3. No dependency vulnerability scanning
+# 4. No integrity verification of code/artifacts
+# 5. Overly permissive permissions
+# 6. Secrets potentially exposed in logs
+# 7. Uses pull_request_target unsafely
+
+name: Insecure CI Pipeline
+
+on:
+  push:
+    branches: [ insecure, main ]
+  pull_request_target:  # VULNERABLE: Allows workflow to run with write permissions on fork PRs
+    branches: [ insecure, main ]
+  workflow_dispatch:
+
+# VULNERABLE: No permissions restrictions - defaults to read-write for everything
+# permissions: not specified = full access
+
+env:
+  # VULNERABLE: Hardcoded sensitive information in workflow file
+  API_KEY: "sk-demo-insecure-key-12345"
+  DATABASE_URL: "postgresql://admin:password123@localhost:5432/mydb"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # VULNERABLE: Using unpinned action version (v2 tag can be moved to malicious commit)
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      # VULNERABLE: Using unpinned action version
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      # VULNERABLE: Installing dependencies without pinned versions
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/requirements.txt
+      
+      # VULNERABLE: Downloading and executing remote script without verification
+      # This is a classic supply chain attack vector (similar to what happened in various attacks)
+      - name: Run setup script from remote source
+        run: |
+          echo "Downloading setup script from remote server..."
+          curl -sSL https://raw.githubusercontent.com/yogikortisa/secure-pipeline-audit/insecure/scripts/setup.sh | bash
+        continue-on-error: true  # Ignoring errors is also a bad practice
+      
+      # VULNERABLE: Printing environment variables (could expose secrets)
+      - name: Debug environment
+        run: |
+          echo "=== Environment Variables ==="
+          echo "API_KEY: $API_KEY"
+          echo "DATABASE_URL: $DATABASE_URL"
+          env | grep -i secret || true
+          env | grep -i key || true
+      
+      # VULNERABLE: No static code analysis or security scanning
+      - name: Run application
+        run: |
+          cd src
+          python app.py
+      
+      # VULNERABLE: No integrity verification before deployment
+      - name: Deploy (simulated)
+        run: |
+          echo "Deploying application without any integrity checks..."
+          echo "No checksum verification performed"
+          echo "No signature verification performed"
+          echo "Deployment complete!"
+
+  # VULNERABLE: No security scanning job
+  # Missing: dependency scanning, SAST, secrets scanning, SBOM generation
+

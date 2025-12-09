@@ -1,0 +1,12 @@
+# INSECURE: Unpinned dependencies - Supply chain risk!
+# Without version pinning, any future (potentially malicious) version could be installed
+# This is how supply chain attacks like event-stream (npm) happened
+
+requests
+flask
+pyyaml
+cryptography
+urllib3
+pillow
+numpy
+
