@@ -15,26 +15,52 @@ Setelah menyelesaikan lab ini, peserta akan mampu:
 3. **Melakukan audit** keamanan pada workflow GitHub Actions
 4. **Menerapkan** teknik mitigasi seperti SHA256 checksum verification dan dependency pinning
 5. **Membandingkan** praktik insecure vs secure dalam CI/CD pipeline
+6. **Mengobservasi** bagaimana security gates memblokir kode vulnerable
 
 ---
 
 ## Struktur Repository
 
-Repository ini memiliki **dua branch** untuk perbandingan:
+Repository ini memiliki **tiga branch** untuk pembelajaran:
 
-| Branch | Deskripsi |
-|--------|-----------|
-| `insecure` | Pipeline dengan kerentanan keamanan (untuk di-audit) |
-| `secure` | Pipeline dengan kontrol keamanan DevSecOps |
+| Branch | Kode | Pipeline | Hasil | Tujuan |
+|--------|------|----------|-------|--------|
+| `insecure` | ❌ Vulnerable | ❌ Tidak aman | ✅ Pass | Untuk di-audit |
+| `devsecops` | ❌ Vulnerable | ✅ Strict gates | ❌ **Fail** | Demo security gate |
+| `secure` | ✅ Aman | ✅ Aman | ✅ Pass | Reference solution |
 
 ```
-.github/workflows/
-  pipeline.yml          # CI/CD workflow (berbeda di setiap branch)
-src/
-  app.py                # Aplikasi Python (berbeda di setiap branch)
-  requirements.txt      # Dependencies
-README.md               # Dokumentasi
-AUDIT_CHECKLIST.md      # Panduan audit untuk peserta
+┌─────────────────────────────────────────────────────────────────┐
+│                    LEARNING PATH                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. insecure ──▶ 2. devsecops ──▶ 3. secure                     │
+│     (audit)       (observe)        (learn fix)                   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Start
+
+```bash
+# Clone repository
+git clone https://github.com/batamhacker/secure-pipeline-audit.git
+cd secure-pipeline-audit
+
+# 1. Audit branch insecure
+git checkout insecure
+cat .github/workflows/pipeline.yml
+cat src/app.py
+
+# 2. Observasi security gate di branch devsecops
+git checkout devsecops
+# Jalankan workflow di GitHub Actions - akan GAGAL!
+
+# 3. Pelajari solusi di branch secure
+git checkout secure
+git diff insecure secure -- .github/workflows/pipeline.yml
 ```
 
 ---
@@ -53,18 +79,18 @@ AUDIT_CHECKLIST.md      # Panduan audit untuk peserta
 
 **Dalam Lab Ini:**
 - Branch `insecure` mendemonstrasikan vektor serangan serupa
-- Penggunaan `curl | bash` dari sumber tidak terpercaya
-- Dependencies tanpa version pinning
-- Tidak ada verifikasi integritas
+- Branch `devsecops` menunjukkan bagaimana security gate mendeteksi serangan
+- Branch `secure` menunjukkan cara mitigasi yang benar
 
 ### Teknik Mitigasi
 
 | Teknik | Implementasi di Lab |
 |--------|---------------------|
 | **Code Signing** | SHA256 checksum verification di branch `secure` |
-| **Dependency Pinning** | requirements.txt dengan hash verification |
+| **Dependency Pinning** | requirements.txt dengan version pinning |
 | **SAST** | Bandit untuk static analysis |
 | **Dependency Scanning** | pip-audit untuk vulnerability scanning |
+| **Security Gates** | Pipeline yang memblokir kode vulnerable (branch `devsecops`) |
 | **Least Privilege** | Minimal permissions di workflow |
 
 ---
@@ -74,38 +100,38 @@ AUDIT_CHECKLIST.md      # Panduan audit untuk peserta
 ### Langkah 1: Audit Branch Insecure
 
 ```bash
-# Clone repository
-git clone https://github.com/yogikortisa/secure-pipeline-audit.git
-cd secure-pipeline-audit
-
-# Checkout branch insecure
 git checkout insecure
-
-# Review workflow file
-cat .github/workflows/pipeline.yml
-
-# Review application code
-cat src/app.py
 ```
 
-**Tugas:** Gunakan `AUDIT_CHECKLIST.md` untuk mengidentifikasi semua kerentanan.
+**Tugas:** Gunakan `AUDIT_CHECKLIST.md` untuk mengidentifikasi semua kerentanan di:
+- `.github/workflows/pipeline.yml`
+- `src/app.py`
+- `src/requirements.txt`
 
-### Langkah 2: Bandingkan dengan Branch Secure
+### Langkah 2: Observasi Security Gate (Branch DevSecOps)
 
 ```bash
-# Checkout branch secure
+git checkout devsecops
+```
+
+1. Fork repository ini
+2. Buka tab **Actions**
+3. Jalankan workflow
+4. **Observasi:** Pipeline akan **GAGAL** karena security tools mendeteksi vulnerabilities
+
+**Ini adalah expected behavior!** Security gate bekerja dengan benar memblokir kode vulnerable.
+
+### Langkah 3: Pelajari Solusi (Branch Secure)
+
+```bash
 git checkout secure
 
-# Bandingkan workflow
+# Bandingkan dengan insecure
 git diff insecure secure -- .github/workflows/pipeline.yml
-
-# Bandingkan kode aplikasi
 git diff insecure secure -- src/app.py
 ```
 
-### Langkah 3: Verifikasi SHA256 Checksum
-
-**Menggunakan SHA256 Hash Generator:**
+### Langkah 4: Verifikasi SHA256 Checksum
 
 ```bash
 # Di Linux/Mac
@@ -117,18 +143,11 @@ Get-FileHash src/app.py -Algorithm SHA256
 # Online tool: https://emn178.github.io/online-tools/sha256_checksum.html
 ```
 
-### Langkah 4: Jalankan Pipeline
-
-1. Fork repository ini ke akun GitHub Anda
-2. Buka tab **Actions**
-3. Jalankan workflow dan observasi hasilnya
-4. Bandingkan log dari branch `insecure` vs `secure`
-
 ---
 
 ## Kerentanan yang Didemonstrasikan
 
-### Di Branch `insecure`:
+### Branch `insecure` - Vulnerabilities to Find:
 
 **Workflow (pipeline.yml):**
 - [ ] Unpinned GitHub Actions (supply chain risk)
@@ -145,7 +164,18 @@ Get-FileHash src/app.py -Algorithm SHA256
 - [ ] Download dan execute remote code
 - [ ] Tidak ada input validation
 
-### Di Branch `secure`:
+### Branch `devsecops` - Security Gate Demo:
+
+**Pipeline akan mendeteksi:**
+- 🚨 Bandit: `eval()` usage (B307)
+- 🚨 Bandit: `exec()` usage (B102)
+- 🚨 Bandit: `pickle` usage (B301)
+- 🚨 Secrets scanner: Hardcoded API keys
+- 🚨 Secrets scanner: Hardcoded passwords
+
+**Hasil:** ❌ Pipeline GAGAL (ini benar!)
+
+### Branch `secure` - Fixed Code:
 
 **Workflow (pipeline.yml):**
 - [x] Actions di-pin dengan SHA commit hash
@@ -157,7 +187,7 @@ Get-FileHash src/app.py -Algorithm SHA256
 
 **Kode (app.py):**
 - [x] Tidak ada hardcoded secrets
-- [x] Safe expression evaluation
+- [x] Safe expression evaluation (AST-based)
 - [x] Input validation
 - [x] Tidak ada insecure deserialization
 
@@ -180,12 +210,13 @@ Get-FileHash src/app.py -Algorithm SHA256
 - [GitHub Actions Security Hardening](https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions)
 - [SolarWinds Attack Analysis](https://www.crowdstrike.com/blog/sunspot-malware-technical-analysis/)
 - [Supply Chain Security Best Practices](https://slsa.dev/)
+- [OWASP DevSecOps Guideline](https://owasp.org/www-project-devsecops-guideline/)
 
 ---
 
 ## Catatan Penting
 
-> **PERINGATAN:** Kode di branch `insecure` sengaja dibuat vulnerable untuk tujuan edukasi. **JANGAN** gunakan pattern tersebut di environment production.
+> **PERINGATAN:** Kode di branch `insecure` dan `devsecops` sengaja dibuat vulnerable untuk tujuan edukasi. **JANGAN** gunakan pattern tersebut di environment production.
 
 ---
 
