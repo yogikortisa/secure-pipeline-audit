@@ -1,4 +1,4 @@
-# CI/CD Pipeline Security Audit Lab - Secure Branch
+# CI/CD Pipeline Security Audit Lab - Secure Branch 
 
 ## Branch: `secure`
 
