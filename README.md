@@ -1,4 +1,4 @@
-# CI/CD Pipeline Security Audit Lab
+# CI/CD Pipeline Security Audit Lab 
 
 ## Hands-on: Audit Keamanan Pipeline CI/CD Sederhana
 
