@@ -1,4 +1,4 @@
-# CI/CD Pipeline Security Audit Lab - DevSecOps Branch
+# CI/CD Pipeline Security Audit Lab - DevSecOps Branch 
 
 ## Branch: `devsecops`
 
